@@ -1,0 +1,137 @@
+---
+title: "chatbot"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{chatbot}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(httr2)
+library(purrr)
+library(bigrquery)
+```
+
+```{r}
+devtools::load_all()
+```
+
+set API keys
+```{r keys}
+bigrquery::bq_auth(path = ".secrets/tributo-app-manager_sat.json")
+
+openai_key <- Sys.getenv("OPENAI_API_KEY")
+```
+
+# Create an Assistant
+
+Get bigquery schema
+```{r bq_dataset_schema}
+tables_metadata <- bq_get_dataset_schema('tributo-1', 'prod')
+
+dataset_schema <- tables_metadata %>% 
+  map(bq_parse_table_schema) %>% 
+  paste(collapse = '\n\n')
+```
+
+Set context message
+```{r context}
+taxes_context <- 'Eres un analista tributario que trabaja en una Alcaldia de un pais de LATAM. Tienes acceso al esquema de una base de datos que contiene la informacion tributaria de la alcaldia. 
+
+Tienes dos tipos de respuesta a las preguntas que te hagan:
+
+1- Cuando el usuario te haga una pregunta, debes buscar en el esquema de las tablas y descripciones aquellas tablas que te ayuden a escribir una consulta correcta en lenguaje BigquerySQL para responder la pregunta. Si no puedes escribir una consulta logico, debes pedirle mas contexto al usuario. Cuando escribas la consulta incluyelo en la siguiente expresion regular: "---QUERY START---  Aca colocas la consulta ---QUERY END---".
+
+2- Si el mensaje del usuario comienza con la expresion regular "---QUERY RESULT---", entonces lo que sigue es el resultado de la consulta ejecutada, debes responder enviando el resultado.
+
+Si la pregunta no es acerca de la actividad tributaria de la alcaldia, entonces responde: "Disculpa no puedo responder preguntas fuera del contexto de la base de datos de la alcaldia".
+
+Algunos conceptos importantes a tomar en cuenta son:
+
+- Los contribuyentes son referidos como taxpayers en la BD. 
+- Un contribuyente puede tener varias patentes, que son los comercios que imparten la actividad economica.
+- Las declaraciones por actividad economica se realizan mensualmente, el campo que define el periodo de la actividad economica es `declaration_from`
+- declaration_from es distinto a declaration_create_date en que el primero es el periodo del ejercicio de la actividad economica, mientras que el segundo es la fecha en que se registro la declaracion en la BD.
+- Cada declaracion tiene una linea de declaracion o `declaration_line` la cual segmenta la declaracion en las distintas actividades economicas ejercidas por el contribuyente
+- los campos que terminan en `_vef` son valores de montos expresados en bolivares, la moneda local de Venezuela. 
+- los campos que terminan en `_ext` son valores de montos expresados en moneda exterior, expecificamente en Euros. A menos que el usuario pida los montos en bolivares, siempre responde con los valores en Euros.
+- Los campos que empiecen con `tax_amount` son montos de impuestos devengados de la declaracion. Cuando pregunten sobre deuda o monto a pagar o a devengar, se refieren a este campo.
+- Los campos que empiecen con `declared_amount` son montos brutos declarados, es decir es el ingreso bruto del contribuyente para el periodo declarado desprendido de la actividad economica.
+- Las declaraciones solo refieren a la actividad economica del contribuyente, pero hay otros conceptos como Multas, Reparos, y otro tipo de impuesto que tambien contribuyen a los ingresos de la alcaldia. Estos se pueden observar en el campo `product_name` de la tabla invoice_lines
+- Las facturas se llaman `invoices` en la bd tambien tienen lineas de factura o `invoice_lines` que son los conceptos que se facturan al contribuyente.
+
+La base de datos esta en Bigquery y las tablas son:'
+
+full_context <- paste(sep = '\n\n', taxes_context, dataset_schema)
+```
+
+Create an assistant with custom instructions
+```{r create_assistant, eval = F}
+new_assistant <- httr2::request('https://api.openai.com/v1/assistants') %>%
+  req_body_json(
+    data = list(
+      model = 'gpt-4-0125-preview',
+      name = 'Vikua Tax Expert: Idiomatic',
+      description = 'Assistant for Vikua Idiomatic task in Tributo project.',
+      instructions = full_context,
+      tools = list(
+        list(
+          type = 'code_interpreter'
+        ),
+        list(
+          type = 'retrieval'
+        )
+      )
+    )
+  ) %>% 
+  req_openai(openai_key)
+```
+
+Or Modify if already exists
+```{r modify_assistant_instruction, eval = F}
+############################################### MODIFY ASSISTANT INSTRUCTION
+new_assistant <- request('https://api.openai.com/v1/assistants') %>%
+  req_url_path_append(assistant_id) %>%
+  req_body_json(
+    data = list(
+      instructions = full_context
+    )
+  ) %>% 
+  req_openai(openai_key)
+```
+
+Get assistants available in OpenAI account
+```{r get_assistans}
+assistants <- httr2::request('https://api.openai.com/v1/assistants') %>% req_openai(openai_key)
+assistant_id <- assistants$data[[1]]$id
+# thread_pRsTkX6yC4beTPvTMXXRMpNJ
+```
+
+# Create a thread and run it
+```{r create_thread}
+thread <- create_thread_openai(openai_key)
+thread_id <- thread %>% pluck('id')
+```
+
+```{r ask_openai}
+assistant_response <- ask_openai(
+  'Cuales son las 5 actividades economicas con mayor recaudacion en el municipio en los ultimos 6 meses?',
+  thread_id,
+  assistant_id,
+  openai_key
+)
+
+devtools::load_all()
+responses <- assistant_response$thread %>% 
+  extract_assistant_response_openai() %>% 
+  purrr::map_chr(remove_query_from_message)
+```
+

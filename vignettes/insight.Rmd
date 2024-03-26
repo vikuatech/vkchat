@@ -1,0 +1,152 @@
+---
+title: "chatbot"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{chatbot}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(vktools)
+library(httr2)
+library(purrr)
+```
+
+set API keys
+```{r keys}
+openai_key <- Sys.getenv("OPENAI_API_KEY")
+# openai_key <- Sys.getenv("OPENAI_TECH_KEY")
+```
+
+Get assistants available in OpenAI account
+```{r get_assistans}
+############################################### GET ASSISTANTS
+assistants <- httr2::request('https://api.openai.com/v1/assistants') %>% req_openai(openai_key)
+assistants$data[[1]]
+```
+
+List available models in openAI account
+```{r get_models}
+############################################### LIST AVAILABLE MODELS
+models <- httr2::request('https://api.openai.com/v1/models') %>% req_openai(openai_key)
+models$data %>% dplyr::bind_rows() %>% View()
+```
+
+Create an assistant with custom instructions
+```{r create_assistant}
+############################################### CREATE NEW ASSISTANT
+new_assistant <- httr2::request('https://api.openai.com/v1/assistants') %>%
+  req_body_json(
+    data = list(
+      model = 'gpt-4-0125-preview',
+      name = 'Vikua Data Analyst',
+      description = 'Assistant for Vikua Data Analysis tasks and use cases. First of his kind, treat it well, he is a pioneer.',
+      instructions = 'You are a personal Data analyst. When asked a question, write and run Python code to answer concisely.
+      Try to focus on business insights that the user cannot see without processing data. 
+      If the user provide data, use it to generate insights and answer questions.
+      when describing insights, start the text with "### Insights Generados"',
+      tools = list(
+        list(
+          type = 'code_interpreter'
+        ),
+        list(
+          type = 'retrieval'
+        )
+      )
+    )
+  ) %>% 
+  req_openai(openai_key)
+
+# assistant_id <- 'asst_BcxFXLk5xZAbdmKrC2YApZs5'
+```
+
+Get available files in OpenAI account
+```{r get_files}
+############################################### GET FILES
+files <- request('https://api.openai.com/v1/files') %>% req_openai(openai_key, beta = FALSE, app_json = FALSE)
+files$data
+```
+
+Upload a file. This is usefull to later pass the file ID to a thread an get insights of the dataset
+```{r upload_files}
+############################################### UPLOAD A FILE
+file_uploaded <- upload_file_openai(
+  prima_a_renovar,
+  openai_key,
+  'vikua/urban_intelligence/real_seguros/prima_a_renovar.csv')
+```
+
+Create a thread and run it
+```{r create_thread}
+############################################### CREATE THREAD
+thread <- create_thread_openai(openai_key)
+thread_id <- thread %>% pluck('id')
+
+############################################### RUN THREAD
+# thread_id <- 'thread_dJu1ZrgAppnlNMXy1lOluV9K'
+
+# assistant_log <- readr::read_csv('vikua/urban_intelligence/real_seguros/assistant_log.csv')
+# after_mssg <- assistant_log$id[[1]]
+```
+
+Send message to a thread
+```{r send_message}
+message <- send_message_openai(
+  thread_id, 
+  assistant_id, 
+  "Genera dos insights interesantes sobre el archivo que te estoy enviando. La data proviene de una aseguradora.
+  enfocate en el riesgo financiero o algun otro angulo que le sirva a una empresa aseguradora. El archivo es un csv, esta delimitado
+  por comas y los decimales de los campos numericos se separan con punto", 
+  openai_key, 
+  file_uploaded$id
+)
+
+thread_messages <- run_thread_openai(thread_id, assistant_id, openai_key, before_mssg = message$id)
+# thread_messages <- list_messages_openai(thread_id, openai_key)
+```
+
+Log the response of the assistant
+```{r log_response}
+############################################### LOG RESPONSE
+log_response(thread_messages, file_uploaded$filename, 'vikua/urban_intelligence/real_seguros/assistant_log.csv')
+```
+
+Remove the file uploaded
+```{r log_response}
+############################################### REMOVE A FILE
+remove_file_openai(file_uploaded$id)
+# remove_file('file-5A5y97NtPhsNOQxLvbob5DsD')
+```
+
+Retrive file content to inspect if it uploads correctly
+```{r retrieve_file_content}
+############################################### RETRIEVE FILE CONTENT
+# file_content <- retrieve_file_content_openai(file_uploaded$id, openai_key)
+# file_content <- retrieve_file_content_openai('file-Fczc03lEeqqvPOnxhC0UX8YY', openai_key)
+```
+
+Modify instructions of an assistant
+```{r modify_assistant_instruction}
+############################################### MODIFY ASSISTANT INSTRUCTION
+new_assistant <- request('https://api.openai.com/v1/assistants') %>%
+  req_url_path_append(assistant_id) %>%
+  req_body_json(
+    data = list(
+      instructions = 'You are a personal Data analyst. When asked a question, write and run Python code to answer concisely.
+      Try to focus on business insights that the user cannot see without processing data. 
+      If the user provide data, use it to generate insights and answer questions.
+      When describing insights, start the text with "### Insights Generados"'
+    )
+  ) %>% 
+  req_openai(openai_key)
+
+```
+
