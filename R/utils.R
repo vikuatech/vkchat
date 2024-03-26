@@ -5,6 +5,7 @@
 #' @inheritParams run_thread
 #' @param roles Roles to extract response from either `user` or `assistant`
 #' @param project_id,dataset_id Bigquery path of the dataset to query to
+#' @param thread_response return of ask_openai call
 #'
 #' @return invisible.
 #'
@@ -30,18 +31,18 @@ remove_query_from_message <- function(content){
     .[,2]
 
   content %>%
-    stringr::str_sub(end = start_location-14)
+    stringr::str_sub(end = start_location-14) %>%
+    stringr::str_remove("\\.\\s*[^.]*$") # Quita el texto pre Query
 }
 
 #' @export
 #' @rdname extract_assistant_response
 parse_query <- function(content, project_id, dataset_id){
 
-  bq_path <- glue::glue('`{project_id}.{dataset_id}.')
+  bq_path <- glue::glue(' `{project_id}.{dataset_id}.')
 
   tryCatch({
     query <- content %>%
-      extract_assistant_response() %>%
       stringr::str_replace_all('\\n', ' ') %>%
       stringr::str_extract('(?<=QUERY START---)(.*)(?=---QUERY END---)') %>%
       stringr::str_replace_all('\\s`', bq_path) %>%
@@ -88,4 +89,23 @@ execute_query <- function(query, project_id){
     )
   })
 
+}
+
+#' @export
+#' @rdname extract_assistant_response
+clean_response <- function(thread_response){
+
+  response <- thread_response$thread %>%
+    extract_assistant_response(roles = 'assistant') %>%
+    rev()
+
+  if(thread_response$status == 'success_sql'){
+    ret <- response %>%
+      purrr::map_chr(remove_query_from_message)
+  }
+  else if(thread_response$status == 'success_nosql'){
+    ret <- response
+  }
+
+  ret %>% paste(collapse = '\n\n')
 }

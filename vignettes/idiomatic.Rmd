@@ -15,9 +15,7 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup}
-library(httr2)
-library(purrr)
-library(bigrquery)
+library(vkchat)
 ```
 
 ```{r}
@@ -27,7 +25,6 @@ devtools::load_all()
 set API keys
 ```{r keys}
 bigrquery::bq_auth(path = ".secrets/tributo-app-manager_sat.json")
-
 openai_key <- Sys.getenv("OPENAI_API_KEY")
 ```
 
@@ -108,30 +105,32 @@ new_assistant <- request('https://api.openai.com/v1/assistants') %>%
   req_openai(openai_key)
 ```
 
+
+# Run Idiomatic workflow 
+
 Get assistants available in OpenAI account
 ```{r get_assistans}
 assistants <- httr2::request('https://api.openai.com/v1/assistants') %>% req_openai(openai_key)
-assistant_id <- assistants$data[[1]]$id
+assistant_id <- Sys.getenv('ASST_TAX_EXPERT') # Tax Expert Assistant
 ```
 
-# Create a thread and run it
 ```{r create_thread}
 thread <- create_thread_openai(openai_key)
 thread_id <- thread %>% pluck('id')
-# thread_id <- thread_pRsTkX6yC4beTPvTMXXRMpNJ # dev thread 
+thread_id <- Sys.getenv('DEV_THREAD_TAX_EXPERT') # dev thread
 ```
 
 ```{r ask_openai}
 assistant_response <- ask_openai(
-  'Cuales son las 5 actividades economicas con mayor recaudacion en el municipio en los ultimos 6 meses?',
+  'Cual es la declaracion mas alta Febrero 2024?',
   thread_id,
   assistant_id,
-  openai_key
+  openai_key,
+  project_id = 'tributo-1',
+  dataset_id = 'prod'
 )
 
-devtools::load_all()
-responses <- assistant_response$thread %>% 
-  extract_assistant_response_openai() %>% 
-  purrr::map_chr(remove_query_from_message)
+assistant_response %>% clean_response()
+  
 ```
 

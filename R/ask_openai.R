@@ -1,6 +1,6 @@
 #' ask_openai
 #'
-#' @description Run flow that ask a question to openAI and perform query to Bigquery
+#' @description Run workflow that ask a question to openAI and perform query to Bigquery
 #'
 #' @inheritParams run_thread
 #' @param roles Roles to extract response from either `user` or `assistant`
@@ -9,7 +9,7 @@
 #' @return invisible.
 #'
 #' @export
-ask_openai <- function(content, thread_id, assistant_id, key){
+ask_openai <- function(content, thread_id, assistant_id, key, project_id, dataset_id){
   # Send user prompt to Assistant
   cat('Sending Message \n')
   message_question <- send_message(
@@ -27,8 +27,20 @@ ask_openai <- function(content, thread_id, assistant_id, key){
     before_mssg = message_question$id
   )
 
+  first_response <- thread_messages %>%
+    extract_assistant_response()
+
+  # Si el mensaje no tiene una sentencia SQL retornalo tal cual
+  if(!stringr::str_detect(first_response, '---QUERY START')){
+    list_return <- c(
+      status = 'success_nosql',
+      thread = list(thread_messages)
+    )
+    return(list_return)
+  }
+
   # Extract SQL query from assistant response
-  assistant_query <- parse_query(thread_messages)
+  assistant_query <- parse_query(first_response, project_id, dataset_id)
 
   if(assistant_query$status == 'error'){
     error_return <- c(assistant_query, thread = list(thread_messages))
@@ -37,7 +49,7 @@ ask_openai <- function(content, thread_id, assistant_id, key){
 
   # Execute SQL query
   cat('Compiling SQL query \n')
-  assistant_query_result <- execute_query(assistant_query$message)
+  assistant_query_result <- execute_query(assistant_query$message, project_id)
 
   if(assistant_query_result$status == 'error'){
     error_return <- c(assistant_query_result, thread = list(thread_messages))
@@ -61,87 +73,8 @@ ask_openai <- function(content, thread_id, assistant_id, key){
   )
 
   c(
-    status = 'success',
+    status = 'success_sql',
     thread = list(thread_messages_respond)
   )
-
-}
-
-#' @export
-#' @rdname ask_openai
-extract_assistant_response <- function(content, roles = c('assistant', 'user')){
-  content %>%
-    purrr::pluck('data') %>%
-    purrr::keep(~.x$role %in% roles) %>%
-    purrr::map_chr(~purrr::pluck(.x, 'content', 1, 'text', 'value'))
-
-}
-
-#' @export
-#' @rdname ask_openai
-remove_query_from_message <- function(content){
-
-  if(!stringr::str_detect(content, '---QUERY START')){
-    return(content)
-  }
-
-  start_location <- content %>%
-    stringr::str_locate("---QUERY START") %>%
-    .[,2]
-
-  content %>%
-    stringr::str_sub(end = start_location-14)
-}
-
-parse_query <- function(content, project_id, dataset_id){
-
-  bq_path <- glue::glue('`{project_id}.{dataset_id}.')
-
-  tryCatch({
-    query <- content %>%
-      extract_assistant_response() %>%
-      stringr::str_replace_all('\\n', ' ') %>%
-      stringr::str_extract('(?<=QUERY START---)(.*)(?=---QUERY END---)') %>%
-      stringr::str_replace_all('\\s`', bq_path) %>%
-      stringr::str_trim()
-
-    list(
-      status = 'success',
-      message = query
-    )
-  },
-  error = function(e){
-    list(
-      status = 'error',
-      message = 'No SQL query found in assistant response.'
-    )
-  })
-
-}
-
-execute_query <- function(query, project_id){
-
-  tryCatch({
-    data_result <- bigrquery::bq_project_query(project_id, query) %>%
-      bigrquery::bq_table_download()
-
-    result_string <- knitr::kable(data_result) %>%
-      as.character() %>%
-      paste0(collapse = '\n')
-
-    mssg <- glue::glue('---QUERY RESULT---\n{result_string}')
-
-    list(
-      status = 'success',
-      message = mssg
-    )
-
-  },
-  error = function(e){
-    list(
-      status = 'error',
-      message = 'Can`t compile SQL query.'
-    )
-  })
 
 }

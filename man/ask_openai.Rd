@@ -2,26 +2,20 @@
 % Please edit documentation in R/ask_openai.R
 \name{ask_openai}
 \alias{ask_openai}
-\alias{extract_assistant_response}
-\alias{remove_query_from_message}
 \title{ask_openai}
 \usage{
-ask_openai(content, thread_id, assistant_id, key)
-
-extract_assistant_response(content, roles = c("assistant", "user"))
-
-remove_query_from_message(content)
+ask_openai(content, thread_id, assistant_id, key, project_id, dataset_id)
 }
 \arguments{
 \item{key}{OpenAI secret key}
 
-\item{roles}{Roles to extract response from either \code{user} or \code{assistant}}
-
 \item{project_id, dataset_id}{Bigquery path of the dataset to query to}
+
+\item{roles}{Roles to extract response from either \code{user} or \code{assistant}}
 }
 \value{
 invisible.
 }
 \description{
-Run flow that ask a question to openAI and perform query to Bigquery
+Run workflow that ask a question to openAI and perform query to Bigquery
 }

@@ -20,7 +20,7 @@ run_thread <- function(thread_id, assistant_id, key, after_mssg = NULL, before_m
   while(status %in% c('queued', 'in_progress')){
 
     # Wait for openai to process the response
-    Sys.sleep(5*security_counter)
+    Sys.sleep(3*security_counter)
     security_counter <- security_counter+1
 
     # Check status

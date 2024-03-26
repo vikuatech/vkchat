@@ -5,6 +5,7 @@
 \alias{remove_query_from_message}
 \alias{parse_query}
 \alias{execute_query}
+\alias{clean_response}
 \title{utils}
 \usage{
 extract_assistant_response(content, roles = c("assistant", "user"))
@@ -14,11 +15,15 @@ remove_query_from_message(content)
 parse_query(content, project_id, dataset_id)
 
 execute_query(query, project_id)
+
+clean_response(thread_response)
 }
 \arguments{
 \item{roles}{Roles to extract response from either \code{user} or \code{assistant}}
 
 \item{project_id, dataset_id}{Bigquery path of the dataset to query to}
+
+\item{thread_response}{return of ask_openai call}
 }
 \value{
 invisible.
