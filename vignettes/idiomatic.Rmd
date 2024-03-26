@@ -112,13 +112,13 @@ Get assistants available in OpenAI account
 ```{r get_assistans}
 assistants <- httr2::request('https://api.openai.com/v1/assistants') %>% req_openai(openai_key)
 assistant_id <- assistants$data[[1]]$id
-# thread_pRsTkX6yC4beTPvTMXXRMpNJ
 ```
 
 # Create a thread and run it
 ```{r create_thread}
 thread <- create_thread_openai(openai_key)
 thread_id <- thread %>% pluck('id')
+# thread_id <- thread_pRsTkX6yC4beTPvTMXXRMpNJ # dev thread 
 ```
 
 ```{r ask_openai}
