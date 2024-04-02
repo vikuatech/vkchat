@@ -28,13 +28,67 @@ bigrquery::bq_auth(path = ".secrets/tributo-app-manager_sat.json")
 openai_key <- Sys.getenv("OPENAI_API_KEY")
 ```
 
+```{r helpers}
+bq_get_dataset_schema <- function(project, dataset){
+
+  tables <- bigrquery::bq_dataset(project, dataset) %>%
+    bigrquery::bq_dataset_tables()
+
+  tables %>%
+    purrr::map_chr(~.x$table) %>%
+    purrr::map(~bigrquery::bq_table(project, dataset, .x) %>% bigrquery::bq_table_meta())
+
+}
+
+filter_chatbot_table <- function(x){
+  chatbot_label <- x %>% pluck('labels', 'chatbot')
+  
+  if(is_empty(chatbot_label)) return(FALSE)
+  
+  chatbot_label == 'enabled'
+}
+
+paste_schema_field <- function(x){
+  
+  name <- x %>% pluck('name')
+  type <- x %>% pluck('type')
+  description <- x %>% pluck('description')
+  description <- ifelse(is.null(description), '', description)
+  
+  glue::glue('-{name}: {type} {description}')
+}
+
+bq_parse_table_schema <- function(table_metadata){
+  # Parser schema to text
+  field_schema <- table_metadata %>%
+    purrr::pluck('schema') %>%
+    purrr::flatten() %>%
+    purrr::map_chr(paste_schema_field) %>%
+    paste(collapse = '\n ')
+
+  # Get table name
+  name <- table_metadata %>% purrr::pluck('tableReference', 'tableId')
+
+  # Get table description
+  description <- table_metadata %>% pluck('description')
+
+  # Paste all those together
+  glue::glue('``````TABLE: {name}; DESCRIPTION: {description}; SCHEMA: \n {field_schema}')
+
+}
+```
+
+
 # Create an Assistant
 
 Get bigquery schema
 ```{r bq_dataset_schema}
-tables_metadata <- bq_get_dataset_schema('tributo-1', 'prod')
+tables_metadata <- bq_get_dataset_schema('tributo-1', 'prod_francisco_de_miranda')
 
-dataset_schema <- tables_metadata %>% 
+chatbot_tables <- tables_metadata %>% 
+  keep(filter_chatbot_table)
+
+dataset_schema <- chatbot_tables %>% 
   map(bq_parse_table_schema) %>% 
   paste(collapse = '\n\n')
 ```
@@ -92,10 +146,16 @@ new_assistant <- httr2::request('https://api.openai.com/v1/assistants') %>%
   req_openai(openai_key)
 ```
 
-Or Modify if already exists
+# Modify assistant instructions
+
+Get assistants available in OpenAI account
+```{r get_assistans}
+assistants <- httr2::request('https://api.openai.com/v1/assistants') %>% req_openai(openai_key)
+assistant_id <- Sys.getenv('ASST_TAX_EXPERT') # Tax Expert Assistant
+```
+
 ```{r modify_assistant_instruction, eval = F}
-############################################### MODIFY ASSISTANT INSTRUCTION
-new_assistant <- request('https://api.openai.com/v1/assistants') %>%
+request('https://api.openai.com/v1/assistants') %>%
   req_url_path_append(assistant_id) %>%
   req_body_json(
     data = list(
@@ -105,14 +165,7 @@ new_assistant <- request('https://api.openai.com/v1/assistants') %>%
   req_openai(openai_key)
 ```
 
-
 # Run Idiomatic workflow 
-
-Get assistants available in OpenAI account
-```{r get_assistans}
-assistants <- httr2::request('https://api.openai.com/v1/assistants') %>% req_openai(openai_key)
-assistant_id <- Sys.getenv('ASST_TAX_EXPERT') # Tax Expert Assistant
-```
 
 ```{r create_thread}
 thread <- create_thread_openai(openai_key)

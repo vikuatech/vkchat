@@ -1,0 +1,54 @@
+---
+title: "logs"
+format: html
+---
+
+Retrieve logs
+
+```{r setup}
+library(vkchat)
+library(purrr)
+```
+
+```{r}
+devtools::load_all()
+```
+
+set API keys
+```{r keys}
+bigrquery::bq_auth(path = ".secrets/tributo-app-manager_sat.json")
+openai_key <- Sys.getenv("OPENAI_API_KEY")
+```
+
+
+```{r chat_config}
+.query_chat_config <- '
+select * from `reporting-338116.vikua_platform.chat_config` where created_at >= "2024-01-01"
+'
+
+chat_config <- bigrquery::bq_table(project = "reporting-338116", dataset = "vikua_platform", table = "chat_config") %>%
+  bigrquery::bq_table_download() %>%
+  tibble::as_tibble()
+```
+
+```{r}
+threads <- chat_config$thread_id %>% 
+  map(~list_messages(.x, key = openai_key))
+```
+
+```{r}
+threads %>% 
+  map(
+    \(x){
+      x %>%
+        pluck('data') %>% 
+        keep(~.x$role == 'user') %>%
+        map(
+          \(y){ y %>% pluck('content', 1, 'text', 'value') }
+        )
+    } 
+  ) %>%
+  unlist()
+```
+
+

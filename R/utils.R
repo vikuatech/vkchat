@@ -106,6 +106,9 @@ clean_response <- function(thread_response){
   else if(thread_response$status == 'success_nosql'){
     ret <- response
   }
+  else{
+    ret <- 'No pude procesar la consulta, porfavor provee más detalle para intentarlo nuevamente.'
+  }
 
   ret %>% paste(collapse = '\n\n')
 }
