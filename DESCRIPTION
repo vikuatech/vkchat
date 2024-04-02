@@ -1,7 +1,7 @@
 Package: vkchat
 Type: Package
 Title: Easy communication with OpenAI API to enable chat-based applications
-Version: 0.0.1
+Version: 0.0.2
 Authors@R: person("Rodrigo", "Serrano", , "roserrano@vikua.com", role = c("aut", "cre"))
 Description: Wrappers to facilitate use of OpenAI API, currently two approach are developed: 
     `Insights` to enable knowledge creation based on specific dataframes
