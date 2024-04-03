@@ -93,9 +93,42 @@ dataset_schema <- chatbot_tables %>%
   paste(collapse = '\n\n')
 ```
 
+Promts Example
+```{r example_prompts}
+example_questions <- c(
+  'Cual es el monto total recaudado por el impuesto municipal de actividades económicas?',
+  'Cual es la declaracion media de enero 2024?',
+  'Cuales son los principales deudores de la alcaldía?',
+  'Cuanto es la deuda de las declaraciones de Febrero 2024?',
+  'Cual es el total de recaudacion cobrada en el año actual?',
+  '¿Cuál es el contribuyente con mayor porcentaje de mora?',
+  'Cuanto es la deuda total por el concepto de aseo urbano?'
+)
+
+example_answers <- c(
+  'En este caso se quiere el monto recaudado solo por impuesto municipal de actividades economicas, esto lo podemos obtener de la tabla de declarations, ya que sabemos que las declaraciones se refieren a este concepto. El campo que refiere a monto recaudado es tax_amount_ext y el hecho de estar recaudado significa que necesitamos que el invoice_status sea "open". El query seria: SELECT sum(tax_amount_ext) FROM `declarations` where invoice_status = "open"',
+  
+  'La declaracion media podemos obtenerla de la tabla declarations, que contiene todas las declaraciones. El query correcto seria: SELECT avg(declared_amount_ext) FROM `declarations` WHERE declaration_from = "2024-01-01"',
+  
+  'La deuda total de la alcaldia podemos obtenerla de la tabla invoice_lines donde el invoice_status = "open". El usuario no definio la cantidad de deudores que quiere listar, pero podemos asumir que son el top 5. Para listar los deudores podemos usar el partner_id. El query seria: SELECT il.partner_id, t.taxpayer_name, sum(il.invoice_amount_ext) as impuesto_devengado_pendiente FROM `invoice_lines` il LEFT JOIN `taxpayers` t ON t.partner_id = il.partner_id WHERE il.invoice_status = "open" GROUP BY il.partner_id, t.taxpayer_name ORDER BY sum(il.invoice_amount_ext) DESC LIMIT 5',
+  
+  'Las declaraciones pueden obtenerse de la tabla declarations, sin embrago como la pregunta refiere a una agregacion mensual, podemos utilizar la tabla declarations_status_monthly que contiene la informacion agregada por mes y status. Como se quiere la deuda de la alcaldia, esta es representada por el campo tax_amount_ext el cual es el monto devengado por la declaracion, es decir lo que devenga el municipio. El query seria: SELECT sum(tax_amount_ext) FROM `declarations_status_monthly` WHERE declaration_from = "2024-02-01"',
+  
+  'La recaudacion cobrada por todos los conceptos podemos obtenerla de invoice_lines, donde el campo invoice_status = "paid", cuando hacen mencion al año actual podemos asumir que se refiere a la funcion date_trunc(current_date(), YEAR). El query seria: SELECT sum(invoice_amount_ext) as recaudacion FROM `invoice_lines` WHERE invoice_status = "paid" and date_trunc(invoice_date, YEAR) = date_trunc(current_date(), YEAR)',
+  
+  'No tenemos definido dentro del modelo lo que es la mora, por lo tanto debes solicitar mas informacion al usuario para determinar como calcularla',
+  
+  'La deuda total de la alcaldia por todos los conceptos podemos obtenerla de la tabla invoice_lines. Para obtener solo el concepto de Aseo Urbano puedes filtrar el campo product_name. El query seria: SELECT sum(invoice_amount_ext) FROM `invoice_lines` WHERE lower(product_name) like "%aseo urbano%" and invoice_status = "open"'
+)
+
+examples <- glue::glue('**Pregunta:** {example_questions}\n**Lógica del Query:** {example_answers}\n\n\n') %>% paste0(collapse = '\n')
+```
+
+
 Set context message
 ```{r context}
-taxes_context <- 'Eres un analista tributario que trabaja en una Alcaldia de un pais de LATAM. Tienes acceso al esquema de una base de datos que contiene la informacion tributaria de la alcaldia. 
+full_context <- glue::glue(
+'Eres un analista tributario que trabaja en una Alcaldia de un pais de LATAM. Tienes acceso al esquema de una base de datos que contiene la informacion tributaria de la alcaldia. 
 
 Tienes dos tipos de respuesta a las preguntas que te hagan:
 
@@ -119,9 +152,12 @@ Algunos conceptos importantes a tomar en cuenta son:
 - Las declaraciones solo refieren a la actividad economica del contribuyente, pero hay otros conceptos como Multas, Reparos, y otro tipo de impuesto que tambien contribuyen a los ingresos de la alcaldia. Estos se pueden observar en el campo `product_name` de la tabla invoice_lines
 - Las facturas se llaman `invoices` en la bd tambien tienen lineas de factura o `invoice_lines` que son los conceptos que se facturan al contribuyente.
 
-La base de datos esta en Bigquery y las tablas son:'
+La base de datos esta en Bigquery y las tablas son:
+{dataset_schema}
 
-full_context <- paste(sep = '\n\n', taxes_context, dataset_schema)
+A continuacion te dejo una serie de preguntas ejemplo y como razonar el query a escribir para responderlas correctamente:
+{examples}
+')
 ```
 
 Create an assistant with custom instructions
@@ -175,12 +211,12 @@ thread_id <- Sys.getenv('DEV_THREAD_TAX_EXPERT') # dev thread
 
 ```{r ask_openai}
 assistant_response <- ask_openai(
-  'Cual es la declaracion mas alta Febrero 2024?',
+  'cual es el mes con mayor procentaje de declaracion recuadada en lo que va de año?',
   thread_id,
   assistant_id,
   openai_key,
   project_id = 'tributo-1',
-  dataset_id = 'prod'
+  dataset_id = 'prod_francisco_de_miranda'
 )
 
 assistant_response %>% clean_response()

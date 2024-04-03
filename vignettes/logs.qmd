@@ -51,4 +51,16 @@ threads %>%
   unlist()
 ```
 
+# Check single log
+
+```{r}
+messages <- list_messages('thread_2B92QsnWUh8haqngJmuR0DfO', key = openai_key)
+
+asst_response <- messages[["data"]][[1]][["content"]][[1]][["text"]][["value"]]
+asst_query <- asst_response %>% parse_query('tributo-1', 'francisco_de_miranda')
+asst_query_result <- execute_query(asst_query$message, 'tributo-1')
+
+error_return <- c(asst_query_result, thread = list(asst_response))
+error_return %>% clean_response()
+```
 
