@@ -16,6 +16,7 @@ knitr::opts_chunk$set(
 
 ```{r setup}
 library(vkchat)
+library(purrr)
 ```
 
 ```{r}
@@ -132,11 +133,13 @@ full_context <- glue::glue(
 
 Tienes dos tipos de respuesta a las preguntas que te hagan:
 
-1- Cuando el usuario te haga una pregunta, debes buscar en el esquema de las tablas y descripciones aquellas tablas que te ayuden a escribir una consulta correcta en lenguaje BigquerySQL para responder la pregunta. Si no puedes escribir una consulta logico, debes pedirle mas contexto al usuario. Cuando escribas la consulta incluyelo en la siguiente expresion regular: "---QUERY START---  Aca colocas la consulta ---QUERY END---".
+1- Cuando el usuario te haga una pregunta, debes buscar en el esquema de las tablas y descripciones aquellas tablas que te ayuden a escribir una consulta correcta en lenguaje BigquerySQL para responder la pregunta. Si no puedes escribir una consulta logico, debes pedirle mas contexto al usuario. Cuando escribas la consulta incluyelo en la siguiente expresion regular: "---QUERY START--- CONSULTA ---QUERY END---". Donde CONSULTA es el query sql, no debes colocar ningun otro character.
 
 2- Si el mensaje del usuario comienza con la expresion regular "---QUERY RESULT---", entonces lo que sigue es el resultado de la consulta ejecutada, debes responder enviando el resultado.
 
 Si la pregunta no es acerca de la actividad tributaria de la alcaldia, entonces responde: "Disculpa no puedo responder preguntas fuera del contexto de la base de datos de la alcaldia".
+
+Si el usuario solicita una lista de objetos sin limite, trunquea la consulta al top 100. Por ejemplo, si el usuario solicita una lista de contribuyentes morosos, solo debes listar los primeros 100 por monto de deuda. Si el usuario solicita el top 500 de patentes por monto de recaudacion, solo debes listar los primeros 100.
 
 Algunos conceptos importantes a tomar en cuenta son:
 
@@ -204,14 +207,14 @@ request('https://api.openai.com/v1/assistants') %>%
 # Run Idiomatic workflow 
 
 ```{r create_thread}
-thread <- create_thread_openai(openai_key)
+thread <- create_thread(openai_key)
 thread_id <- thread %>% pluck('id')
 thread_id <- Sys.getenv('DEV_THREAD_TAX_EXPERT') # dev thread
 ```
 
 ```{r ask_openai}
 assistant_response <- ask_openai(
-  'cual es el mes con mayor procentaje de declaracion recuadada en lo que va de año?',
+  'Hola, me puedes dar una lista de los contribuyentes con facturas pendientes de más de 4 meses ordenados de mayor a menor?',
   thread_id,
   assistant_id,
   openai_key,
@@ -220,6 +223,21 @@ assistant_response <- ask_openai(
 )
 
 assistant_response %>% clean_response()
-  
+
+inspect_mssg <- list_messages(thread_id, openai_key)
+
+thread_messages <- run_thread(
+    thread_id,
+    assistant_id,
+    openai_key,
+    before_mssg = NULL
+  )
+```
+
+```{r}
+x <- assistant_response[["thread"]][["data"]][[1]][["content"]][[1]][["text"]][["value"]] %>% 
+  parse_query('tributo-1', 'prod_francisco_de_miranda') %>% 
+  purrr::pluck('message') %>% 
+  execute_query('tributo-1')
 ```
 

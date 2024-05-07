@@ -45,6 +45,9 @@ parse_query <- function(content, project_id, dataset_id){
     query <- content %>%
       stringr::str_replace_all('\\n', ' ') %>%
       stringr::str_extract('(?<=QUERY START---)(.*)(?=---QUERY END---)') %>%
+      stringr::str_trim() %>%
+      stringr::str_replace("```$", "") %>%
+      stringr::str_replace(".*?(WITH|SELECT)", "\\1") %>%
       stringr::str_replace_all('\\s`', bq_path) %>%
       stringr::str_trim()
 
@@ -68,7 +71,8 @@ execute_query <- function(query, project_id){
 
   tryCatch({
     data_result <- bigrquery::bq_project_query(project_id, query) %>%
-      bigrquery::bq_table_download()
+      bigrquery::bq_table_download() %>%
+      head(100) # Limita a 100 filas. Esto es por el limite de TPM del modelo. more info: https://platform.openai.com/account/rate-limits
 
     result_string <- knitr::kable(data_result) %>%
       as.character() %>%
