@@ -233,11 +233,3 @@ thread_messages <- run_thread(
     before_mssg = NULL
   )
 ```
-
-```{r}
-x <- assistant_response[["thread"]][["data"]][[1]][["content"]][[1]][["text"]][["value"]] %>% 
-  parse_query('tributo-1', 'prod_francisco_de_miranda') %>% 
-  purrr::pluck('message') %>% 
-  execute_query('tributo-1')
-```
-
