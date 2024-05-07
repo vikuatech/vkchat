@@ -209,7 +209,7 @@ request('https://api.openai.com/v1/assistants') %>%
 ```{r create_thread}
 thread <- create_thread(openai_key)
 thread_id <- thread %>% pluck('id')
-thread_id <- Sys.getenv('DEV_THREAD_TAX_EXPERT') # dev thread
+# thread_id <- Sys.getenv('DEV_THREAD_TAX_EXPERT') # dev thread
 ```
 
 ```{r ask_openai}

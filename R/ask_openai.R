@@ -27,6 +27,8 @@ ask_openai <- function(content, thread_id, assistant_id, key, project_id, datase
     before_mssg = message_question$id
   )
 
+
+
   first_response <- thread_messages %>%
     extract_assistant_response()
 
