@@ -104,10 +104,12 @@ clean_response <- function(thread_response){
     rev()
 
   if(thread_response$status == 'success_sql'){
+    print('Response with SQL sentence')
     ret <- response %>%
       purrr::map_chr(remove_query_from_message)
   }
   else if(thread_response$status == 'success_nosql'){
+    print('Response without SQL sentence')
     ret <- response
   }
   else{

@@ -27,24 +27,26 @@ ask_openai <- function(content, thread_id, assistant_id, key, project_id, datase
     before_mssg = message_question$id
   )
 
-
-
+  cat('Extracting Response \n')
   first_response <- thread_messages %>%
     extract_assistant_response()
 
   # Si el mensaje no tiene una sentencia SQL retornalo tal cual
   if(!stringr::str_detect(first_response, '---QUERY START')){
-    list_return <- c(
+    cat('Error Status: success_nosql \n')
+    nosql_return <- c(
       status = 'success_nosql',
       thread = list(thread_messages)
     )
-    return(list_return)
+    return(nosql_return)
   }
 
   # Extract SQL query from assistant response
+  cat('Extracting SQL sentence \n')
   assistant_query <- parse_query(first_response, project_id, dataset_id)
 
   if(assistant_query$status == 'error'){
+    cat('Error Status: Cant extract SQL sentence \n')
     error_return <- c(assistant_query, thread = list(thread_messages))
     return(error_return)
   }
@@ -54,6 +56,7 @@ ask_openai <- function(content, thread_id, assistant_id, key, project_id, datase
   assistant_query_result <- execute_query(assistant_query$message, project_id)
 
   if(assistant_query_result$status == 'error'){
+    cat('Error Status: Wrong SQL sentence. Cant compile \n')
     error_return <- c(assistant_query_result, thread = list(thread_messages))
     return(error_return)
   }
@@ -74,9 +77,11 @@ ask_openai <- function(content, thread_id, assistant_id, key, project_id, datase
     before_mssg = message_question$id
   )
 
-  c(
+  concluding_response <- c(
     status = 'success_sql',
     thread = list(thread_messages_respond)
   )
+
+  return(concluding_response)
 
 }
