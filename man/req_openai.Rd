@@ -4,7 +4,14 @@
 \alias{req_openai}
 \title{req_openai}
 \usage{
-req_openai(req, key, beta = TRUE, app_json = TRUE, dry_run = FALSE)
+req_openai(
+  req,
+  key,
+  beta = TRUE,
+  app_json = TRUE,
+  dry_run = FALSE,
+  beta_version = "assistants=v2"
+)
 }
 \arguments{
 \item{req}{req object to perform the request}

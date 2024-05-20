@@ -11,11 +11,11 @@
 #' @return invisible.
 #'
 #' @export
-req_openai <- function(req, key, beta = TRUE, app_json = TRUE, dry_run = FALSE) {
+req_openai <- function(req, key, beta = TRUE, app_json = TRUE, dry_run = FALSE, beta_version = 'assistants=v2') {
 
   # Add Beta Header
   if(beta){
-    req <- req %>% httr2::req_headers('OpenAI-Beta' = 'assistants=v1')
+    req <- req %>% httr2::req_headers('OpenAI-Beta' = beta_version)
   }
 
   # Add Accept json header

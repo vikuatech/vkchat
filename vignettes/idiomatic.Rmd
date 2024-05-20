@@ -168,7 +168,7 @@ Create an assistant with custom instructions
 new_assistant <- httr2::request('https://api.openai.com/v1/assistants') %>%
   req_body_json(
     data = list(
-      model = 'gpt-4-0125-preview',
+      model = 'gpt-4o',
       name = 'Vikua Tax Expert: Idiomatic',
       description = 'Assistant for Vikua Idiomatic task in Tributo project.',
       instructions = full_context,
@@ -194,14 +194,15 @@ assistant_id <- Sys.getenv('ASST_TAX_EXPERT') # Tax Expert Assistant
 ```
 
 ```{r modify_assistant_instruction, eval = F}
-request('https://api.openai.com/v1/assistants') %>%
-  req_url_path_append(assistant_id) %>%
-  req_body_json(
+httr2::request('https://api.openai.com/v1/assistants') %>%
+  httr2::req_url_path_append(assistant_id) %>%
+  httr2::req_body_json(
     data = list(
-      instructions = full_context
+      model = 'gpt-4o'
+      # instructions = full_context
     )
   ) %>% 
-  req_openai(openai_key)
+  req_openai(openai_key, beta = TRUE, dry_run = TRUE, beta_version = 'assistants=v2')
 ```
 
 # Run Idiomatic workflow 
